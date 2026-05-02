@@ -10,6 +10,9 @@ const PORT = process.env.PORT || 3000
 
 let projects = []
 
+// 🔥 FRONTEND URL (PRODUCTION)
+const CLIENT_URL = "https://pickme-frontend.vercel.app"
+
 app.get("/", (req, res) => {
   res.json({ status: "OK" })
 })
@@ -32,8 +35,12 @@ app.post("/create-project", (req, res) => {
 
   projects.push(project)
 
+  // 🔥 FIX INI (NO LOCALHOST LAGI)
+  const link = `${CLIENT_URL}/project/${code}`
+
   res.json({
-    link: `http://localhost:5173/project/${code}`
+    link,
+    code
   })
 })
 
