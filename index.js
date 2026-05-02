@@ -3,7 +3,19 @@ const cors = require("cors")
 
 const app = express()
 
-app.use(cors({ origin: "*" }))
+// 🔥 CORS FIX FULL (VERCEL + LOCAL + PRE-FLIGHT SAFE)
+const corsOptions = {
+  origin: [
+    "http://localhost:5173",
+    "https://pickme-frontend.vercel.app"
+  ],
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type"]
+}
+
+app.use(cors(corsOptions))
+app.options("*", cors(corsOptions))
+
 app.use(express.json())
 
 const PORT = process.env.PORT || 3000
@@ -20,6 +32,10 @@ app.get("/", (req, res) => {
 app.post("/create-project", (req, res) => {
   const { name, admin_whatsapp } = req.body
 
+  if (!name || !admin_whatsapp) {
+    return res.status(400).json({ error: "Missing data" })
+  }
+
   const code = Math.random().toString(36).substring(2, 8)
 
   const project = {
@@ -35,13 +51,9 @@ app.post("/create-project", (req, res) => {
 
   projects.push(project)
 
-  // 🔥 FIX INI (NO LOCALHOST LAGI)
   const link = `${CLIENT_URL}/project/${code}`
 
-  res.json({
-    link,
-    code
-  })
+  res.json({ link, code })
 })
 
 app.get("/project/:code", (req, res) => {
