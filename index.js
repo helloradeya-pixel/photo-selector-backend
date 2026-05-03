@@ -73,12 +73,13 @@ async function fetchDriveFiles(folderId) {
 // EXTRACT FOLDER ID
 // =====================
 function extractFolderId(url) {
+  if (!url) return null
   const match = url.match(/folders\/([a-zA-Z0-9_-]+)/)
   return match ? match[1] : null
 }
 
 // =====================
-// CREATE PROJECT
+// CREATE PROJECT (FIXED)
 // =====================
 app.post("/create-project", async (req, res) => {
   try {
@@ -94,10 +95,12 @@ app.post("/create-project", async (req, res) => {
     }
 
     const code = Math.random().toString(36).substring(2, 8)
+
     const folderId = extractFolderId(drive_link)
 
     let photos = []
 
+    // ambil foto dari Apps Script proxy
     if (folderId) {
       photos = await fetchDriveFiles(folderId)
     }
@@ -110,12 +113,13 @@ app.post("/create-project", async (req, res) => {
           name,
           admin_whatsapp,
           max_photos: Number(max_photos) || 10,
-          drive_folder_id: folderId,
+          drive_link: drive_link, // ✅ FIX: pakai kolom yang ada di Supabase kamu
           photos
         }
       ])
 
     if (error) {
+      console.log("SUPABASE ERROR:", error)
       return res.status(500).json({ error: error.message })
     }
 
@@ -147,6 +151,8 @@ app.get("/project/:code", async (req, res) => {
   res.json(data)
 })
 
+// =====================
+// START SERVER
 // =====================
 app.listen(process.env.PORT, "0.0.0.0", () => {
   console.log("🚀 Backend running on", process.env.PORT)
