@@ -26,7 +26,7 @@ app.use(cors({
 
     return callback(new Error("Not allowed by CORS"))
   },
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  methods: ["GET", "POST", "OPTIONS"],
   credentials: true
 }))
 
@@ -34,7 +34,7 @@ app.options("*", cors())
 app.use(express.json())
 
 // =====================
-// DEBUG LOG
+// DEBUG
 // =====================
 app.use((req, res, next) => {
   console.log("🔥", req.method, req.url)
@@ -54,7 +54,7 @@ const supabase = createClient(
 const CLIENT_URL = "https://pickme-frontend.vercel.app"
 
 // =====================
-// GOOGLE DRIVE PROXY
+// FETCH DRIVE FILES
 // =====================
 async function fetchDriveFiles(folderId) {
   try {
@@ -64,12 +64,26 @@ async function fetchDriveFiles(folderId) {
 
     const res = await axios.get(url)
 
-    if (!Array.isArray(res.data)) {
-      console.log("❌ INVALID RESPONSE:", res.data)
+    let data = res.data
+
+    // handle kalau string
+    if (typeof data === "string") {
+      try {
+        data = JSON.parse(data)
+      } catch {
+        console.log("❌ JSON PARSE FAIL")
+        return []
+      }
+    }
+
+    if (!Array.isArray(data)) {
+      console.log("❌ NOT ARRAY:", data)
       return []
     }
 
-    return res.data
+    console.log("📦 RAW FILES:", data.length)
+
+    return data
   } catch (err) {
     console.log("❌ DRIVE ERROR:", err.message)
     return []
@@ -86,34 +100,34 @@ function extractFolderId(url) {
 }
 
 // =====================
-// 🔥 FIX GOOGLE DRIVE IMAGE URL
+// MAP DRIVE → IMAGE URL
 // =====================
 function mapDrivePhotos(files) {
   return files
     .map(file => {
       let fileId = file.id
 
-      // fallback ambil ID dari URL
+      // fallback ambil dari url
       if (!fileId && file.url) {
         const match = file.url.match(/[-\w]{25,}/)
         fileId = match ? match[0] : null
       }
 
       if (!fileId) {
-        console.log("❌ ID NOT FOUND:", file)
+        console.log("❌ SKIP FILE (NO ID):", file)
         return null
       }
 
       const directUrl = `https://lh3.googleusercontent.com/d/${fileId}`
 
       return {
-        ...file,
+        name: file.name || "",
         id: fileId,
         url: directUrl,
         full: directUrl
       }
     })
-    .filter(Boolean) // buang yang gagal
+    .filter(Boolean)
 }
 
 // =====================
@@ -139,13 +153,10 @@ app.post("/create-project", async (req, res) => {
 
     if (folderId) {
       const rawFiles = await fetchDriveFiles(folderId)
-
-      console.log("📦 RAW FILES:", rawFiles)
-
       photos = mapDrivePhotos(rawFiles)
-
-      console.log("🖼️ MAPPED PHOTOS:", photos)
     }
+
+    console.log("🖼️ FINAL PHOTOS:", photos.length)
 
     const { error } = await supabase
       .from("projects")
