@@ -54,15 +54,20 @@ const supabase = createClient(
 const CLIENT_URL = "https://pickme-frontend.vercel.app"
 
 // =====================
-// DRIVE PROXY (GOOGLE APPS SCRIPT)
+// GOOGLE APPS SCRIPT PROXY
 // =====================
 async function fetchDriveFiles(folderId) {
   try {
-    const res = await axios.get(
-      `${process.env.DRIVE_PROXY_URL}?folder=${folderId}`
-    )
+    const url = `${process.env.DRIVE_PROXY_URL}?folder=${folderId}`
 
-    return res.data || []
+    const res = await axios.get(url)
+
+    if (!Array.isArray(res.data)) {
+      console.log("INVALID DRIVE RESPONSE:", res.data)
+      return []
+    }
+
+    return res.data
   } catch (err) {
     console.log("DRIVE PROXY ERROR:", err.message)
     return []
@@ -79,7 +84,7 @@ function extractFolderId(url) {
 }
 
 // =====================
-// CREATE PROJECT (FIXED)
+// CREATE PROJECT
 // =====================
 app.post("/create-project", async (req, res) => {
   try {
@@ -100,7 +105,6 @@ app.post("/create-project", async (req, res) => {
 
     let photos = []
 
-    // ambil foto dari Apps Script proxy
     if (folderId) {
       photos = await fetchDriveFiles(folderId)
     }
@@ -113,7 +117,7 @@ app.post("/create-project", async (req, res) => {
           name,
           admin_whatsapp,
           max_photos: Number(max_photos) || 10,
-          drive_link: drive_link, // ✅ FIX: pakai kolom yang ada di Supabase kamu
+          drive_link,
           photos
         }
       ])
@@ -138,17 +142,22 @@ app.post("/create-project", async (req, res) => {
 // GET PROJECT
 // =====================
 app.get("/project/:code", async (req, res) => {
-  const { data, error } = await supabase
-    .from("projects")
-    .select("*")
-    .eq("code", req.params.code)
-    .single()
+  try {
+    const { data, error } = await supabase
+      .from("projects")
+      .select("*")
+      .eq("code", req.params.code)
+      .single()
 
-  if (error || !data) {
-    return res.status(404).json({ error: "Not found" })
+    if (error || !data) {
+      return res.status(404).json({ error: "Not found" })
+    }
+
+    res.json(data)
+
+  } catch (err) {
+    res.status(500).json({ error: err.message })
   }
-
-  res.json(data)
 })
 
 // =====================
