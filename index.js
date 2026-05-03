@@ -1,11 +1,12 @@
 const express = require("express")
 const cors = require("cors")
 const { createClient } = require("@supabase/supabase-js")
+const axios = require("axios")
 
 const app = express()
 
 // =====================
-// CORS CONFIG
+// CORS
 // =====================
 const allowedOrigins = [
   "http://localhost:5173",
@@ -23,7 +24,6 @@ app.use(cors({
       return callback(null, true)
     }
 
-    console.log("BLOCKED CORS:", origin)
     return callback(new Error("Not allowed by CORS"))
   },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -32,9 +32,6 @@ app.use(cors({
 
 app.options("*", cors())
 
-// =====================
-// BODY PARSER
-// =====================
 app.use(express.json())
 
 // =====================
@@ -50,34 +47,44 @@ app.use((req, res, next) => {
 // =====================
 const PORT = process.env.PORT || 3000
 
-// =====================
-// SUPABASE
-// =====================
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_ANON_KEY
 )
 
-// =====================
-// FRONTEND URL
-// =====================
 const CLIENT_URL = "https://pickme-frontend.vercel.app"
 
 // =====================
-// ROUTES
+// GOOGLE DRIVE HELPER
 // =====================
+function extractFolderId(url) {
+  const match = url.match(/folders\/([a-zA-Z0-9_-]+)/)
+  return match ? match[1] : null
+}
 
-app.get("/", (req, res) => {
-  res.json({ status: "OK" })
-})
+async function fetchDriveFiles(folderId) {
+  const apiKey = process.env.GOOGLE_DRIVE_API_KEY
+
+  const res = await axios.get(
+    "https://www.googleapis.com/drive/v3/files",
+    {
+      params: {
+        q: `'${folderId}' in parents`,
+        key: apiKey,
+        fields: "files(id,name,thumbnailLink,webViewLink)",
+        pageSize: 1000
+      }
+    }
+  )
+
+  return res.data.files || []
+}
 
 // =====================
-// CREATE PROJECT (UPGRADED)
+// CREATE PROJECT
 // =====================
 app.post("/create-project", async (req, res) => {
   try {
-    console.log("🔥 HIT CREATE PROJECT")
-
     const {
       name,
       admin_whatsapp,
@@ -85,13 +92,27 @@ app.post("/create-project", async (req, res) => {
       drive_link
     } = req.body
 
-    if (!name || !admin_whatsapp) {
+    if (!name || !admin_whatsapp || !drive_link) {
       return res.status(400).json({ error: "Missing data" })
     }
 
     const code = Math.random().toString(36).substring(2, 8)
+    const folderId = extractFolderId(drive_link)
 
-    const { data, error } = await supabase
+    let photos = []
+
+    if (folderId) {
+      const files = await fetchDriveFiles(folderId)
+
+      photos = files.map(f => ({
+        id: f.id,
+        name: f.name,
+        url: f.thumbnailLink,
+        full: f.webViewLink
+      }))
+    }
+
+    const { error } = await supabase
       .from("projects")
       .insert([
         {
@@ -99,14 +120,12 @@ app.post("/create-project", async (req, res) => {
           name,
           admin_whatsapp,
           max_photos: Number(max_photos) || 10,
-          drive_link: drive_link || null,
-          photos: []
+          drive_folder_id: folderId,
+          photos
         }
       ])
-      .select()
 
     if (error) {
-      console.log("SUPABASE ERROR:", error)
       return res.status(500).json({ error: error.message })
     }
 
@@ -116,7 +135,6 @@ app.post("/create-project", async (req, res) => {
     })
 
   } catch (err) {
-    console.log("SERVER ERROR:", err)
     return res.status(500).json({ error: err.message })
   }
 })
@@ -138,8 +156,6 @@ app.get("/project/:code", async (req, res) => {
   res.json(data)
 })
 
-// =====================
-// START SERVER
 // =====================
 app.listen(process.env.PORT, "0.0.0.0", () => {
   console.log("🚀 Backend running on", process.env.PORT)
