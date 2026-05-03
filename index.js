@@ -38,10 +38,10 @@ app.options("*", cors())
 app.use(express.json())
 
 // =====================
-// DEBUG MIDDLEWARE (IMPORTANT)
+// DEBUG
 // =====================
 app.use((req, res, next) => {
-  console.log("🔥 INCOMING REQUEST:", req.method, req.url)
+  console.log("🔥", req.method, req.url)
   next()
 })
 
@@ -71,12 +71,19 @@ app.get("/", (req, res) => {
   res.json({ status: "OK" })
 })
 
-// CREATE PROJECT
+// =====================
+// CREATE PROJECT (UPGRADED)
+// =====================
 app.post("/create-project", async (req, res) => {
   try {
     console.log("🔥 HIT CREATE PROJECT")
 
-    const { name, admin_whatsapp } = req.body
+    const {
+      name,
+      admin_whatsapp,
+      max_photos,
+      drive_link
+    } = req.body
 
     if (!name || !admin_whatsapp) {
       return res.status(400).json({ error: "Missing data" })
@@ -91,11 +98,9 @@ app.post("/create-project", async (req, res) => {
           code,
           name,
           admin_whatsapp,
-          photos: [
-            { name: "foto1", url: "https://picsum.photos/500?1" },
-            { name: "foto2", url: "https://picsum.photos/500?2" },
-            { name: "foto3", url: "https://picsum.photos/500?3" }
-          ]
+          max_photos: Number(max_photos) || 10,
+          drive_link: drive_link || null,
+          photos: []
         }
       ])
       .select()
@@ -116,7 +121,9 @@ app.post("/create-project", async (req, res) => {
   }
 })
 
+// =====================
 // GET PROJECT
+// =====================
 app.get("/project/:code", async (req, res) => {
   const { data, error } = await supabase
     .from("projects")
