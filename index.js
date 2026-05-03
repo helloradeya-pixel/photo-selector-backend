@@ -34,7 +34,7 @@ app.options("*", cors())
 app.use(express.json())
 
 // =====================
-// DEBUG
+// DEBUG LOG
 // =====================
 app.use((req, res, next) => {
   console.log("🔥", req.method, req.url)
@@ -54,22 +54,24 @@ const supabase = createClient(
 const CLIENT_URL = "https://pickme-frontend.vercel.app"
 
 // =====================
-// GOOGLE APPS SCRIPT PROXY
+// GOOGLE DRIVE PROXY
 // =====================
 async function fetchDriveFiles(folderId) {
   try {
     const url = `${process.env.DRIVE_PROXY_URL}?folder=${folderId}`
 
+    console.log("📡 FETCH:", url)
+
     const res = await axios.get(url)
 
     if (!Array.isArray(res.data)) {
-      console.log("INVALID DRIVE RESPONSE:", res.data)
+      console.log("❌ INVALID RESPONSE:", res.data)
       return []
     }
 
     return res.data
   } catch (err) {
-    console.log("DRIVE PROXY ERROR:", err.message)
+    console.log("❌ DRIVE ERROR:", err.message)
     return []
   }
 }
@@ -84,28 +86,34 @@ function extractFolderId(url) {
 }
 
 // =====================
-// CONVERT GOOGLE DRIVE URL → DIRECT IMAGE
+// 🔥 FIX GOOGLE DRIVE IMAGE URL
 // =====================
 function mapDrivePhotos(files) {
-  return files.map(file => {
-    let fileId = file.id
+  return files
+    .map(file => {
+      let fileId = file.id
 
-    // fallback ambil id dari url kalau id kosong
-    if (!fileId && file.url) {
-      const match = file.url.match(/\/d\/([a-zA-Z0-9_-]+)/)
-      fileId = match ? match[1] : null
-    }
+      // fallback ambil ID dari URL
+      if (!fileId && file.url) {
+        const match = file.url.match(/[-\w]{25,}/)
+        fileId = match ? match[0] : null
+      }
 
-    const directUrl = fileId
-      ? `https://drive.google.com/uc?export=view&id=${fileId}`
-      : ""
+      if (!fileId) {
+        console.log("❌ ID NOT FOUND:", file)
+        return null
+      }
 
-    return {
-      ...file,
-      url: directUrl,
-      full: directUrl
-    }
-  })
+      const directUrl = `https://lh3.googleusercontent.com/d/${fileId}`
+
+      return {
+        ...file,
+        id: fileId,
+        url: directUrl,
+        full: directUrl
+      }
+    })
+    .filter(Boolean) // buang yang gagal
 }
 
 // =====================
@@ -131,10 +139,13 @@ app.post("/create-project", async (req, res) => {
 
     if (folderId) {
       const rawFiles = await fetchDriveFiles(folderId)
-      photos = mapDrivePhotos(rawFiles)
-    }
 
-    console.log("FINAL PHOTOS:", photos)
+      console.log("📦 RAW FILES:", rawFiles)
+
+      photos = mapDrivePhotos(rawFiles)
+
+      console.log("🖼️ MAPPED PHOTOS:", photos)
+    }
 
     const { error } = await supabase
       .from("projects")
@@ -150,7 +161,7 @@ app.post("/create-project", async (req, res) => {
       ])
 
     if (error) {
-      console.log("SUPABASE ERROR:", error)
+      console.log("❌ SUPABASE ERROR:", error)
       return res.status(500).json({ error: error.message })
     }
 
@@ -160,7 +171,7 @@ app.post("/create-project", async (req, res) => {
     })
 
   } catch (err) {
-    console.log("SERVER ERROR:", err.message)
+    console.log("❌ SERVER ERROR:", err.message)
     return res.status(500).json({ error: err.message })
   }
 })
@@ -183,6 +194,7 @@ app.get("/project/:code", async (req, res) => {
     res.json(data)
 
   } catch (err) {
+    console.log("❌ GET ERROR:", err.message)
     res.status(500).json({ error: err.message })
   }
 })
