@@ -84,6 +84,31 @@ function extractFolderId(url) {
 }
 
 // =====================
+// CONVERT GOOGLE DRIVE URL → DIRECT IMAGE
+// =====================
+function mapDrivePhotos(files) {
+  return files.map(file => {
+    let fileId = file.id
+
+    // fallback ambil id dari url kalau id kosong
+    if (!fileId && file.url) {
+      const match = file.url.match(/\/d\/([a-zA-Z0-9_-]+)/)
+      fileId = match ? match[1] : null
+    }
+
+    const directUrl = fileId
+      ? `https://drive.google.com/uc?export=view&id=${fileId}`
+      : ""
+
+    return {
+      ...file,
+      url: directUrl,
+      full: directUrl
+    }
+  })
+}
+
+// =====================
 // CREATE PROJECT
 // =====================
 app.post("/create-project", async (req, res) => {
@@ -100,14 +125,16 @@ app.post("/create-project", async (req, res) => {
     }
 
     const code = Math.random().toString(36).substring(2, 8)
-
     const folderId = extractFolderId(drive_link)
 
     let photos = []
 
     if (folderId) {
-      photos = await fetchDriveFiles(folderId)
+      const rawFiles = await fetchDriveFiles(folderId)
+      photos = mapDrivePhotos(rawFiles)
     }
+
+    console.log("FINAL PHOTOS:", photos)
 
     const { error } = await supabase
       .from("projects")
@@ -163,6 +190,6 @@ app.get("/project/:code", async (req, res) => {
 // =====================
 // START SERVER
 // =====================
-app.listen(process.env.PORT, "0.0.0.0", () => {
-  console.log("🚀 Backend running on", process.env.PORT)
+app.listen(PORT, "0.0.0.0", () => {
+  console.log("🚀 Backend running on", PORT)
 })
