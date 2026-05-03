@@ -31,7 +31,6 @@ app.use(cors({
 }))
 
 app.options("*", cors())
-
 app.use(express.json())
 
 // =====================
@@ -55,29 +54,27 @@ const supabase = createClient(
 const CLIENT_URL = "https://pickme-frontend.vercel.app"
 
 // =====================
-// GOOGLE DRIVE HELPER
+// DRIVE PROXY (GOOGLE APPS SCRIPT)
+// =====================
+async function fetchDriveFiles(folderId) {
+  try {
+    const res = await axios.get(
+      `${process.env.DRIVE_PROXY_URL}?folder=${folderId}`
+    )
+
+    return res.data || []
+  } catch (err) {
+    console.log("DRIVE PROXY ERROR:", err.message)
+    return []
+  }
+}
+
+// =====================
+// EXTRACT FOLDER ID
 // =====================
 function extractFolderId(url) {
   const match = url.match(/folders\/([a-zA-Z0-9_-]+)/)
   return match ? match[1] : null
-}
-
-async function fetchDriveFiles(folderId) {
-  const apiKey = process.env.GOOGLE_DRIVE_API_KEY
-
-  const res = await axios.get(
-    "https://www.googleapis.com/drive/v3/files",
-    {
-      params: {
-        q: `'${folderId}' in parents`,
-        key: apiKey,
-        fields: "files(id,name,thumbnailLink,webViewLink)",
-        pageSize: 1000
-      }
-    }
-  )
-
-  return res.data.files || []
 }
 
 // =====================
@@ -102,14 +99,7 @@ app.post("/create-project", async (req, res) => {
     let photos = []
 
     if (folderId) {
-      const files = await fetchDriveFiles(folderId)
-
-      photos = files.map(f => ({
-        id: f.id,
-        name: f.name,
-        url: f.thumbnailLink,
-        full: f.webViewLink
-      }))
+      photos = await fetchDriveFiles(folderId)
     }
 
     const { error } = await supabase
@@ -135,6 +125,7 @@ app.post("/create-project", async (req, res) => {
     })
 
   } catch (err) {
+    console.log("SERVER ERROR:", err.message)
     return res.status(500).json({ error: err.message })
   }
 })
