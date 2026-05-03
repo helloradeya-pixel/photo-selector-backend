@@ -4,7 +4,9 @@ const { createClient } = require("@supabase/supabase-js")
 
 const app = express()
 
-// ✅ CORS CONFIG (FIX VERCEL + LOCAL)
+// =====================
+// CORS CONFIG
+// =====================
 const allowedOrigins = [
   "http://localhost:5173",
   "https://pickme-frontend.vercel.app"
@@ -12,7 +14,6 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: function (origin, callback) {
-    // allow request tanpa origin (postman, mobile app, dll)
     if (!origin) return callback(null, true)
 
     if (
@@ -20,30 +21,51 @@ app.use(cors({
       origin.endsWith(".vercel.app")
     ) {
       return callback(null, true)
-    } else {
-      console.log("BLOCKED CORS:", origin)
-      return callback(new Error("Not allowed by CORS"))
     }
+
+    console.log("BLOCKED CORS:", origin)
+    return callback(new Error("Not allowed by CORS"))
   },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   credentials: true
 }))
 
-// ✅ HANDLE PREFLIGHT (PENTING)
 app.options("*", cors())
 
+// =====================
+// BODY PARSER
+// =====================
 app.use(express.json())
 
+// =====================
+// DEBUG MIDDLEWARE (IMPORTANT)
+// =====================
+app.use((req, res, next) => {
+  console.log("🔥 INCOMING REQUEST:", req.method, req.url)
+  next()
+})
+
+// =====================
+// ENV
+// =====================
 const PORT = process.env.PORT || 3000
 
-// 🔥 SUPABASE CONFIG
+// =====================
+// SUPABASE
+// =====================
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_ANON_KEY
 )
 
+// =====================
 // FRONTEND URL
+// =====================
 const CLIENT_URL = "https://pickme-frontend.vercel.app"
+
+// =====================
+// ROUTES
+// =====================
 
 app.get("/", (req, res) => {
   res.json({ status: "OK" })
@@ -52,7 +74,7 @@ app.get("/", (req, res) => {
 // CREATE PROJECT
 app.post("/create-project", async (req, res) => {
   try {
-    console.log("HIT CREATE PROJECT")
+    console.log("🔥 HIT CREATE PROJECT")
 
     const { name, admin_whatsapp } = req.body
 
@@ -109,6 +131,9 @@ app.get("/project/:code", async (req, res) => {
   res.json(data)
 })
 
-app.listen(PORT, () => {
-  console.log("Backend running on", PORT)
+// =====================
+// START SERVER
+// =====================
+app.listen(process.env.PORT, "0.0.0.0", () => {
+  console.log("🚀 Backend running on", process.env.PORT)
 })
